@@ -1,49 +1,95 @@
 import numpy as np
 from scipy.optimize import leastsq
-import pylab as pl
+import matplotlib.pyplot as plt
 
-def func(x, p):
+# 目标函数
+def real_func(x):
+    return np.sin(2*np.pi*x)
 
+# 拟合函数
+"""
+ploy1d([a]) => a
+ploy1d([a,b]) => ax + b
+ploy1d([a,b,c]) => ax^2 + bx + c
+ploy1d([a,b,c,d]) => ax^3 + bx^2 + cx +d
+"""
+def fit_func(p,x):
+    f = np.poly1d(p)
+    return f(x)
+
+def residuals_func(p,x,y):
+    err = fit_func(p,x) - y
+    return err
+
+# regularization
+def residuals_func_regularization(p, x, y, r):
+    err = fit_func(p, x) - y
+    err = np.append(err, np.sqrt(0.5*r*np.square(p))) # L2范数作为正则化项
+    return err
+
+
+def fitting(x,y,M):
     """
-    数据拟合所用的函数: A*sin(2*pi*k*x + theta)
+    n 为 多项式的次数
     """
-    A, k, theta = p
-    return A*np.sin(2*np.pi*k*x+theta)
+    # 随机初始化多项式参数
+    p_init = np.random.rand(M+1)
+    # 最小二乘法
+    p_lsq = leastsq(residuals_func, p_init, args=(x, y))
+    #print('Fitting Parameters:', p_lsq[0])
 
-def residuals(p, y, x):
+
+    return p_lsq
+
+def fitting_regularization(x,y,M, r):
     """
-    实验数据x, y和拟合函数之间的差，p为拟合需要找到的系数
-    :param p: para A, k, theta
-    :param y: dependent variables
-    :param x: indendent variables
-    :return:
+    n 为 多项式的次数
     """
-    return y - func(x, p)
-
-x = np.linspace(0, -2*np.pi, 100)
-
-# 真实数据的函数参数
-A, k, theta = 10, 0.34, np.pi/6
-# 真实数据
-y0 = func(x, [A, k, theta])
-# 加入噪声之后的实验数据
-y1 = y0 + 2 * np.random.randn(len(x))
-
-# 第一次猜测的函数拟合参数
-p0 = [7, 0.2, 0]
-
-# 调用leastsq进行数据拟合
-# residuals为计算误差的函数
-# p0为拟合参数的初始值
-# args为需要拟合的实验数据
-plsq = leastsq(residuals, p0, args=(y1, x))
-print(u"真实参数:", [A, k, theta])
-# 实验数据拟合后的参数
-print(u"拟合参数", plsq[0])
+    # 随机初始化多项式参数
+    p_init = np.random.rand(M+1)
+    # 最小二乘法
+    p_lsq = leastsq(residuals_func_regularization, p_init, args=(x, y, r))
+    #print('Fitting Parameters:', p_lsq[0])
 
 
-pl.plot(x, y0, label=u"真实数据")
-pl.plot(x, y1, label=u"带噪声的实验数据")
-pl.plot(x, func(x, plsq[0]), label=u"拟合数据")
-pl.legend()
-pl.show()
+    return p_lsq
+
+
+if __name__ == "__main__":
+    # data number
+    N = 10
+    # data provided
+    x_provided = np.linspace(0, 1, N)
+    # 加上正态分布噪音的目标函数的值
+    y_provided = 0.2 * np.random.randn(N) + real_func(x_provided)
+
+    # real data
+    x_real = np.linspace(0, 1, 1000)
+    y_real = real_func(x_real)
+
+
+    M = 9
+    regularization = 0.0001
+
+    fig1 = plt.figure()
+    for i in range(M):
+        title = 'M=' + str(i+1)
+        solution = fitting(x_provided, y_provided, i)
+        ax = fig1.add_subplot(3,3,i+1,title=title)
+        ax.scatter(x_provided,y_provided,label='noise')
+        ax.plot(x_real, y_real, label='real')
+        ax.plot(x_real, fit_func(solution[0], x_real), label='fitted')
+        ax.legend()
+
+    fig2 = plt.figure()
+    for i in range(M):
+        title = 'M=' + str(i + 1)
+        solution = fitting_regularization(x_provided, y_provided, i, regularization)
+        ax = fig2.add_subplot(3, 3, i + 1, title=title)
+        ax.scatter(x_provided, y_provided, label='noise')
+        ax.plot(x_real, y_real, label='real')
+        ax.plot(x_real, fit_func(solution[0], x_real), label='fitted')
+        ax.legend()
+
+    plt.show()
+
